@@ -9,7 +9,7 @@ import ora from "ora";
 import inquirer from "inquirer";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { transform } from "@svgr/core";
+import { ConfigPlugin, transform } from "@svgr/core";
 import findUp from "find-up";
 import { program } from "commander";
 
@@ -180,6 +180,8 @@ function tree2Element(tree: TIconTree[]): React.ReactElement[] {
   );
 }
 
+const replaceSvgElementToSvgPlugin = (code: string) => code.replaceAll("SVGSVGElement", "Svg")
+
 async function getIconSvg(
   projectId: string,
   iconName: string,
@@ -217,14 +219,20 @@ async function getIconSvg(
   const svg = JSON.parse(match[1]) as TIconTree;
   const svgComponent = tree2Element([svg]);
   const svgHtml = renderToStaticMarkup(svgComponent);
-  const jsCode = await transform(
+
+  const plugins: ConfigPlugin[] = [
+    "@svgr/plugin-svgo",
+    "@svgr/plugin-jsx",
+    "@svgr/plugin-prettier",
+  ]
+
+  if(config.native)
+    plugins.push(replaceSvgElementToSvgPlugin)
+
+  let jsCode = await transform(
     svgHtml,
     {
-      plugins: [
-        "@svgr/plugin-svgo",
-        "@svgr/plugin-jsx",
-        "@svgr/plugin-prettier",
-      ],
+      plugins,
       native: config.native,
       typescript: config.typescript,
       icon: true,
@@ -267,7 +275,7 @@ async function main() {
       {
         type: "select",
         name: "value",
-        message: "Select a icon project:",
+        message: "Select an icon project:",
         loop: false,
         choices: projects.map((project) => ({
           value: project.id,
@@ -286,13 +294,9 @@ async function main() {
         message: "Search for an icon:",
         name: "value",
         source: async (filter) => {
-          if (!filter) {
-            return [];
-          }
-
           const regex = new RegExp(
-            `export\\s+declare\\s+const\\s+(\\w*${filter}\\w*):\\s*IconType;`,
-            "g"
+            `export\\s+declare\\s+const\\s+(\\w*${filter ?? ""}\\w*):\\s*IconType;`,
+            "gi"
           );
 
           return [...iconsFileDefinition.matchAll(regex)].map(

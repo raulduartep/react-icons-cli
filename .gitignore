@@ -1,4 +1,9 @@
 node_modules/
 dist/
+icons/
 
 package-lock.json
+react-icons.config.json
+react-icons-*.tgz
+
+.idea
